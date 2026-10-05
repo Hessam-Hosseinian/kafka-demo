@@ -1,28 +1,84 @@
 # Kafka Visual Demo
 
-یک دموی کوچک و آموزشی برای نمایش زنده مسیر پیام از **Producer** به **Kafka** و سپس یکی از سه **Consumer**. کدها عمداً کوتاه و بدون معماری یا ابزار اضافه نوشته شده‌اند تا برای تایپ مرحله‌به‌مرحله در ویدیو مناسب باشند.
+یک دموی آموزشی و بصری برای نمایش زنده‌ی مسیر پیام از **Producer** به **Apache Kafka** و سپس Consumerهای یک **Consumer Group**.
+
+هدف پروژه این است که مفاهیم اصلی Kafka مثل Topic، Partition، Consumer Group و Rebalancing را با یک UI ساده و قابل مشاهده نمایش دهد.
+
+## چیزی که دمو می‌بینید
+
+- ارسال پیام تکی یا Batch از Producer
+- Topic با نام `demo-packages`
+- سه Partition
+- سه Consumer در یک Consumer Group
+- توزیع پیام‌ها بین Consumerها
+- نمایش زنده‌ی پیام‌ها در React UI
+- ارسال Eventهای وضعیت از Backend به Frontend با WebSocket
+- Rebalancing هنگام قطع یا اتصال Consumer
+- Load Test ساده برای مشاهده رفتار سیستم زیر بار
+
+## Tech stack
+
+- Apache Kafka
+- Node.js
+- Express 5
+- KafkaJS
+- WebSocket (`ws`)
+- React 19
+- Vite 7
+- Docker Compose
+
+## معماری
+
+```text
+React UI ──HTTP──> Express ──> Kafka Producer
+    ▲                              │
+    │                              ▼
+    └──WebSocket── Express <── demo-packages
+                                      │
+                           3 Kafka partitions
+                                      │
+                         ┌────────────┼────────────┐
+                         ▼            ▼            ▼
+                    Consumer A   Consumer B   Consumer C
+                         └──── demo-consumer-group ────┘
+```
+
+### مفاهیم اصلی
+
+- **Producer** پیام‌های جدید را داخل Kafka منتشر می‌کند.
+- **Topic** جریان نام‌گذاری‌شده‌ی پیام‌هاست؛ این پروژه از `demo-packages` استفاده می‌کند.
+- **Partition** امکان پردازش موازی یک Topic را فراهم می‌کند.
+- **Consumer** پیام‌ها را دریافت و پردازش می‌کند.
+- **Consumer Group** کار Partitionها را بین Consumerهای عضو تقسیم می‌کند.
+
+در یک Consumer Group، هر Partition در هر لحظه فقط به یک Consumer واگذار می‌شود. با سه Partition و سه Consumer، معمولاً هر Consumer یک Partition می‌گیرد. اگر یکی از Consumerها قطع شود، Kafka assignmentها را دوباره توزیع می‌کند.
 
 ## پیش‌نیازها
 
 - Docker و Docker Compose
 - Node.js 20.19 یا جدیدتر
-- Bash و curl برای Load Test
+- npm
+- Bash و `curl` برای Load Test
 
 ## اجرا
 
-۱. Kafka را اجرا کنید:
+### 1. Kafka
+
+از ریشه‌ی پروژه:
 
 ```bash
 docker compose up -d
 ```
 
-برای دیدن آماده‌شدن Kafka می‌توانید لاگ را دنبال کنید:
+برای مشاهده‌ی وضعیت Kafka:
 
 ```bash
 docker compose logs -f kafka
 ```
 
-۲. در یک Terminal، Backend را اجرا کنید:
+### 2. Backend
+
+در یک Terminal جدید:
 
 ```bash
 cd backend
@@ -30,9 +86,17 @@ npm install
 npm run dev
 ```
 
-Backend روی `http://localhost:3000` اجرا می‌شود. اگر Kafka هنوز آماده نباشد، Backend خاموش نمی‌شود و هر پنج ثانیه دوباره تلاش می‌کند. Topic به نام `demo-packages` با سه Partition نیز خودکار ساخته می‌شود.
+Backend روی آدرس زیر اجرا می‌شود:
 
-۳. در Terminal دیگری، Frontend را اجرا کنید:
+```text
+http://localhost:3000
+```
+
+اگر Kafka هنوز آماده نباشد، Backend هر چند ثانیه دوباره برای اتصال تلاش می‌کند. Topic مورد نیاز نیز توسط پروژه ایجاد می‌شود.
+
+### 3. Frontend
+
+در Terminal دیگری:
 
 ```bash
 cd frontend
@@ -40,11 +104,15 @@ npm install
 npm run dev
 ```
 
-حالا `http://localhost:5173` را در مرورگر باز کنید. برای بهترین نمایش هنگام ضبط، از پنجره‌ای با نسبت 16:9 استفاده کنید.
+سپس باز کنید:
+
+```text
+http://localhost:5173
+```
 
 ## API
 
-ارسال یک پیام:
+### ارسال یک پیام
 
 ```bash
 curl -X POST http://localhost:3000/api/messages \
@@ -52,7 +120,9 @@ curl -X POST http://localhost:3000/api/messages \
   -d '{"content":"Hello Kafka"}'
 ```
 
-ارسال یک Batch (از ۱ تا ۱۰۰۰ پیام):
+### ارسال Batch
+
+تعداد پیام می‌تواند بین ۱ تا ۱۰۰۰ باشد:
 
 ```bash
 curl -X POST http://localhost:3000/api/messages/batch \
@@ -62,38 +132,17 @@ curl -X POST http://localhost:3000/api/messages/batch \
 
 ## Load Test
 
-از ریشه پروژه:
+از ریشه‌ی پروژه:
 
 ```bash
 chmod +x scripts/load-test.sh
+
 ./scripts/load-test.sh 20 0.5
 ./scripts/load-test.sh 100 0.05
 ./scripts/load-test.sh 500 0
 ```
 
-آرگومان اول تعداد پیام و آرگومان دوم فاصله ارسال‌ها برحسب ثانیه است. در انتها تعداد درخواست‌های موفق، ناموفق و زمان اجرا چاپ می‌شود.
-
-## معماری ساده
-
-```text
-React UI ──HTTP──> Express ──> Kafka Producer
-    ▲                              │
-    │                              ▼
-    └──WebSocket── Express <── demo-packages (3 partitions)
-                                      │
-                         ┌────────────┼────────────┐
-                         ▼            ▼            ▼
-                    Consumer A   Consumer B   Consumer C
-                         └──── demo-consumer-group ────┘
-```
-
-- **Producer** رویدادهای جدید را تولید می‌کند.
-- **Topic** جریان نام‌گذاری‌شده‌ای است که پیام‌ها در آن نگهداری می‌شوند؛ این پروژه از `demo-packages` استفاده می‌کند.
-- **Partition** یک مسیر مستقل داخل Topic است. چند Partition امکان خواندن موازی پیام‌ها را فراهم می‌کنند.
-- **Consumer** پیام‌ها را می‌خواند و پردازش می‌کند.
-- **Consumer Group** گروهی از Consumerهاست که کار یک Topic را بین خود تقسیم می‌کنند.
-
-هر Partition در یک Consumer Group در هر لحظه فقط به یک Consumer واگذار می‌شود. بنابراین با سه Partition و سه Consumer، معمولاً هر Consumer صاحب یک Partition می‌شود و پیام‌ها بین آن‌ها تقسیم می‌شوند. اگر Consumerی قطع شود، Kafka Partition آن را به یکی از Consumerهای باقی‌مانده واگذار می‌کند.
+آرگومان اول تعداد پیام‌ها و آرگومان دوم فاصله‌ی ارسال‌ها برحسب ثانیه است.
 
 ## توقف پروژه
 
@@ -103,5 +152,8 @@ Backend و Frontend را با `Ctrl+C` متوقف کنید و سپس:
 docker compose down
 ```
 
-این دمو داده Kafka را دائمی نمی‌کند؛ با ساخت دوباره کانتینر، جریان پیام‌ها از ابتدا شروع می‌شود.
-# kafka-demo
+این پروژه یک دمو است و Kafka storage آن برای نگه‌داری دائمی داده طراحی نشده است.
+
+## هدف آموزشی
+
+این ریپو عمداً معماری ساده‌ای دارد تا جریان داده و رفتار Kafka قابل مشاهده باشد و برای آموزش یا ضبط ویدئوی مرحله‌به‌مرحله مناسب بماند.
